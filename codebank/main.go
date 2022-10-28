@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/AndradeMaicon/code-bank/infra/grpc/server"
+	"github.com/AndradeMaicon/code-bank/infra/kafka"
 	repository "github.com/AndradeMaicon/code-bank/infra/respository"
 	"github.com/AndradeMaicon/code-bank/usecase"
 	_ "github.com/lib/pq"
@@ -14,12 +16,22 @@ import (
 func main() {
 	db := setupDb()
 	defer db.Close()
+	producer := setupKafkaProducer()
+	processTransactionUseCase := setupTransactionUseCase(db, producer)
+	serveGrpc(processTransactionUseCase)
 }
 
-func setupTransactionUseCase(db *sql.DB) usecase.UseCaseTransaction {
+func setupTransactionUseCase(db *sql.DB, producer kafka.KafkaProducer) usecase.UseCaseTransaction {
 	transactionRepository := repository.NewTransactionRepositoryDb(db)
 	useCase := usecase.NewUseCaseTransaction(transactionRepository)
+	useCase.KafkaProducer = producer
 	return useCase
+}
+
+func setupKafkaProducer() kafka.KafkaProducer {
+	producer := kafka.NewKafkaProducer()
+	producer.SetupProducer("host.docker.internal:9094")
+	return producer
 }
 
 func setupDb() *sql.DB {
@@ -35,4 +47,10 @@ func setupDb() *sql.DB {
 		log.Fatal("error connection to database")
 	}
 	return db
+}
+
+func serveGrpc(processTransactionUseCase usecase.UseCaseTransaction) {
+	grpcServer := server.NewGRPCServer()
+	grpcServer.ProcessTransactionUseCase = processTransactionUseCase
+	grpcServer.Serve()
 }
