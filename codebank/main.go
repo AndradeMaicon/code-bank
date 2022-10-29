@@ -10,8 +10,16 @@ import (
 	"github.com/AndradeMaicon/code-bank/infra/kafka"
 	repository "github.com/AndradeMaicon/code-bank/infra/respository"
 	"github.com/AndradeMaicon/code-bank/usecase"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
+
+func init() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("error loading .env file")
+	}
+}
 
 func main() {
 	db := setupDb()
@@ -30,7 +38,7 @@ func setupTransactionUseCase(db *sql.DB, producer kafka.KafkaProducer) usecase.U
 
 func setupKafkaProducer() kafka.KafkaProducer {
 	producer := kafka.NewKafkaProducer()
-	producer.SetupProducer("host.docker.internal:9094")
+	producer.SetupProducer(os.Getenv("KafkaBootstrapServers"))
 	return producer
 }
 
@@ -52,5 +60,14 @@ func setupDb() *sql.DB {
 func serveGrpc(processTransactionUseCase usecase.UseCaseTransaction) {
 	grpcServer := server.NewGRPCServer()
 	grpcServer.ProcessTransactionUseCase = processTransactionUseCase
+	fmt.Println("Rodando grpc server")
 	grpcServer.Serve()
 }
+
+// psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+// 		os.Getenv("host"),
+// 		os.Getenv("port"),
+// 		os.Getenv("user"),
+// 		os.Getenv("password"),
+// 		os.Getenv("dbname"),
+// 	)
